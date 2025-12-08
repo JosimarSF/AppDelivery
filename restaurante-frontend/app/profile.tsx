@@ -23,7 +23,7 @@ const COLORS = {
 };
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, token, signOut } = useAuth();
 
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
@@ -31,22 +31,53 @@ export default function ProfileScreen() {
   const [fieldName, setFieldName] = useState(user?.name ?? "");
   const [fieldEmail, setFieldEmail] = useState(user?.email ?? "");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [message, setMessage] = useState("");
 
-  const handleSaveProfile = () => {
-    // Aquí conectas API para actualizar datos
-    setEditModalVisible(false);
+  const handleSaveProfile = async () => {
+    try {
+      if (!confirmPassword) {
+        setMessage("Ingresa tu contraseña actual");
+        return;
+      }
+
+      const response = await fetch(
+        "https://appdelivery-vwmv.onrender.com/api/auth/update",
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: fieldName,
+            email: fieldEmail,
+            current_password: confirmPassword,
+          }),
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+
+      setMessage("Perfil actualizado correctamente");
+
+      setTimeout(() => {
+        setEditModalVisible(false);
+        setMessage("");
+      }, 1200);
+    } catch (e: any) {
+      setMessage(e.message);
+    }
   };
 
   const openWhatsApp = () => {
     const phone = "922826228";
     const url = `https://wa.me/51${phone}`;
-
     Linking.openURL(url);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* HEADER */}
       <View style={styles.center}>
         <Ionicons
           name="person-circle-outline"
@@ -57,17 +88,12 @@ export default function ProfileScreen() {
         <Text style={styles.email}>{user?.email ?? "correo@ejemplo.com"}</Text>
       </View>
 
-      {/* CARD */}
       <View style={styles.card}>
         <TouchableOpacity
           style={styles.option}
           onPress={() => setEditModalVisible(true)}
         >
-          <Ionicons
-            name="settings-outline"
-            size={22}
-            color={COLORS.primary}
-          />
+          <Ionicons name="settings-outline" size={22} color={COLORS.primary} />
           <Text style={styles.optionText}>Configuración</Text>
         </TouchableOpacity>
 
@@ -84,7 +110,6 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* BOTÓN DE LOGOUT */}
       <TouchableOpacity
         style={styles.logoutButton}
         onPress={() => setLogoutModalVisible(true)}
@@ -93,7 +118,7 @@ export default function ProfileScreen() {
         <Text style={styles.logoutText}>Cerrar sesión</Text>
       </TouchableOpacity>
 
-      {/* MODAL DE EDITAR PERFIL */}
+      {/* MODAL EDITAR PERFIL */}
       <Modal transparent visible={editModalVisible} animationType="fade">
         <View style={styles.backdrop}>
           <View style={styles.modalCardCenter}>
@@ -122,6 +147,19 @@ export default function ProfileScreen() {
               onChangeText={setConfirmPassword}
             />
 
+            {message !== "" && (
+              <Text
+                style={{
+                  color:
+                    message.includes("correctamente") ? "green" : COLORS.danger,
+                  marginTop: 10,
+                  textAlign: "center",
+                }}
+              >
+                {message}
+              </Text>
+            )}
+
             <TouchableOpacity
               style={styles.confirmButton}
               onPress={handleSaveProfile}
@@ -131,7 +169,10 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               style={styles.cancelButton}
-              onPress={() => setEditModalVisible(false)}
+              onPress={() => {
+                setEditModalVisible(false);
+                setMessage("");
+              }}
             >
               <Text style={styles.cancelText}>Cancelar</Text>
             </TouchableOpacity>
@@ -139,15 +180,11 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* MODAL DE CONFIRMAR LOGOUT */}
+      {/* MODAL LOGOUT */}
       <Modal transparent visible={logoutModalVisible} animationType="fade">
         <View style={styles.backdrop}>
           <View style={styles.logoutCardCenter}>
-            <Ionicons
-              name="log-out-outline"
-              size={48}
-              color={COLORS.primary}
-            />
+            <Ionicons name="log-out-outline" size={48} color={COLORS.primary} />
 
             <Text style={styles.logoutTitle}>¿Cerrar sesión?</Text>
             <Text style={styles.logoutSubtitle}>
@@ -230,8 +267,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginLeft: 8,
   },
-
-  /* MODALES */
 
   backdrop: {
     flex: 1,
