@@ -10,7 +10,9 @@ from flask_jwt_extended import (
 
 # CONFIGURACIÓN GENERAL
 app = Flask(__name__)
-CORS(app)
+
+# CORS COMPLETO → necesario para Expo Web
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "restaurant.db")
@@ -22,7 +24,7 @@ jwt = JWTManager(app)
 
 # MODELOS
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)    
     email = db.Column(db.String(120), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
@@ -198,16 +200,24 @@ def create_order():
     db.session.commit()
     return jsonify({"message": "Pedido creado correctamente"}), 201
 
-@app.route("/api/user/update", methods=["PUT"])
-@jwt_required()
-def update_user():
-    user_id = int(get_jwt_identity())
-    data = request.get_json()
 
-    user = User.query.get(user_id)
+# UPDATE PROFILE — FIX PARA CORS EN EXPO WEB
+@app.route("/api/user/update", methods=["PUT", "OPTIONS"])
+@jwt_required(optional=True)
+def update_user():
+    # Preflight de CORS
+    if request.method == "OPTIONS":
+        return "", 200
+
+    user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({"error": "Token inválido"}), 401
+
+    user = User.query.get(int(user_id))
     if not user:
         return jsonify({"error": "Usuario no encontrado"}), 404
 
+    data = request.get_json()
     current_password = data.get("current_password")
     new_name = data.get("name")
     new_email = data.get("email")
@@ -231,7 +241,6 @@ def update_user():
     }), 200
 
 
-
 # INICIALIZACIÓN
 with app.app_context():
     db.create_all()
@@ -247,6 +256,7 @@ with app.app_context():
         ]
         db.session.bulk_save_objects(sample_items)
         db.session.commit()
+
 
 # EJECUCIÓN LOCAL
 if __name__ == "__main__":
