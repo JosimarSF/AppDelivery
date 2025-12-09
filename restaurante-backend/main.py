@@ -13,13 +13,12 @@ from flask_jwt_extended import (
 # ===========================
 app = Flask(__name__)
 
-# CORS CONFIG → FIX COMPLETO PARA RENDER + EXPO WEB
+# CORS → FIX DEFINITIVO PARA EXPO WEB + RENDER
 CORS(app,
      resources={r"/api/*": {
          "origins": ["http://localhost:8081", "*"],
          "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-         "allow_headers": ["Content-Type", "Authorization"],
-         "supports_credentials": True
+         "allow_headers": ["Content-Type", "Authorization"]
      }})
 
 @app.after_request
@@ -168,6 +167,47 @@ def login():
 
 
 # ===========================
+# UPDATE USER (RUTA FIX)
+# ===========================
+@app.route("/api/auth/update", methods=["PUT", "OPTIONS"])
+@jwt_required(optional=True)
+def update_user():
+    if request.method == "OPTIONS":
+        return "", 200
+
+    user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({"error": "Token inválido"}), 401
+
+    user = User.query.get(int(user_id))
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    data = request.get_json()
+    current_password = data.get("current_password")
+    new_name = data.get("name")
+    new_email = data.get("email")
+    new_password = data.get("new_password")
+
+    if not current_password or not user.check_password(current_password):
+        return jsonify({"error": "Contraseña actual incorrecta"}), 401
+
+    if new_name:
+        user.name = new_name
+    if new_email:
+        user.email = new_email
+    if new_password:
+        user.set_password(new_password)
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Perfil actualizado correctamente",
+        "user": {"id": user.id, "name": user.name, "email": user.email}
+    }), 200
+
+
+# ===========================
 # MENÚ
 # ===========================
 @app.route("/api/menu", methods=["GET"])
@@ -230,60 +270,18 @@ def create_order():
 
 
 # ===========================
-# UPDATE USER (CORS FIX)
-# ===========================
-@app.route("/api/user/update", methods=["PUT", "OPTIONS"])
-@jwt_required(optional=True)
-def update_user():
-    if request.method == "OPTIONS":
-        return "", 200
-
-    user_id = get_jwt_identity()
-    if not user_id:
-        return jsonify({"error": "Token inválido"}), 401
-
-    user = User.query.get(int(user_id))
-    if not user:
-        return jsonify({"error": "Usuario no encontrado"}), 404
-
-    data = request.get_json()
-    current_password = data.get("current_password")
-    new_name = data.get("name")
-    new_email = data.get("email")
-    new_password = data.get("new_password")
-
-    if not current_password or not user.check_password(current_password):
-        return jsonify({"error": "Contraseña actual incorrecta"}), 401
-
-    if new_name:
-        user.name = new_name
-    if new_email:
-        user.email = new_email
-    if new_password:
-        user.set_password(new_password)
-
-    db.session.commit()
-
-    return jsonify({
-        "message": "Perfil actualizado correctamente",
-        "user": {"id": user.id, "name": user.name, "email": user.email}
-    }), 200
-
-
-# ===========================
 # INICIALIZACIÓN
 # ===========================
 with app.app_context():
     db.create_all()
 
     if not MenuItem.query.first():
-        print("Poblando base de datos con datos de ejemplo...")
         sample_items = [
             MenuItem(name="Arroz con Pollo", description="Clásico plato universitario con arroz verde y presa de pollo.", price=18.00, image_url="https://i.imgur.com/E5oZtYf.jpeg", category="Comidas"),
             MenuItem(name="Tallarines Rojos con Bistec", description="Tallarines en salsa roja con bistec apanado.", price=20.00, image_url="https://i.imgur.com/nOfgN4I.jpeg", category="Comidas"),
-            MenuItem(name="Aji de Gallina", description="Guiso de gallina deshilachada con salsa de ají amarillo.", price=19.00, image_url="https://i.imgur.com/jE0kGcD.jpeg", category="Comidas"),
+            MenuItem(name="Aji de Gallina", description="Guiso de gallina con ají amarillo.", price=19.00, image_url="https://i.imgur.com/jE0kGcD.jpeg", category="Comidas"),
             MenuItem(name="Chicha Morada", description="Refresco de maíz morado.", price=6.00, image_url="https://i.imgur.com/lDAE0s4.jpeg", category="Bebidas"),
-            MenuItem(name="Galletas de Quinua", description="Hechas con quinua andina y miel.", price=3.50, image_url="https://i.imgur.com/YwH3uJY.jpeg", category="Dulces"),
+            MenuItem(name="Galletas de Quinua", description="Hechas con quinua andina.", price=3.50, image_url="https://i.imgur.com/YwH3uJY.jpeg", category="Dulces"),
         ]
         db.session.bulk_save_objects(sample_items)
         db.session.commit()
