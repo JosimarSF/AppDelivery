@@ -8,12 +8,31 @@ from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity, JWTManager
 )
 
-# CONFIGURACIÓN GENERAL
+# ===========================
+# CONFIG GENERAL
+# ===========================
 app = Flask(__name__)
 
-# CORS COMPLETO → necesario para Expo Web
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+# CORS CONFIG → FIX COMPLETO PARA RENDER + EXPO WEB
+CORS(app,
+     resources={r"/api/*": {
+         "origins": ["http://localhost:8081", "*"],
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization"],
+         "supports_credentials": True
+     }})
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
+
+
+# ===========================
+# DB + JWT
+# ===========================
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "restaurant.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -22,7 +41,10 @@ app.config["JWT_SECRET_KEY"] = "una-clave-secreta-fuerte"
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
+
+# ===========================
 # MODELOS
+# ===========================
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)    
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -110,7 +132,9 @@ class Order(db.Model):
         }
 
 
-# RUTAS AUTH
+# ===========================
+# AUTH
+# ===========================
 @app.route("/api/auth/register", methods=["POST"])
 def register():
     data = request.get_json()
@@ -143,7 +167,9 @@ def login():
     return jsonify({"error": "Credenciales inválidas"}), 401
 
 
-# RUTA MENÚ
+# ===========================
+# MENÚ
+# ===========================
 @app.route("/api/menu", methods=["GET"])
 def get_menu():
     menu_items = MenuItem.query.all()
@@ -157,7 +183,9 @@ def get_menu():
     return jsonify(categorized_menu)
 
 
-# RUTAS PEDIDOS
+# ===========================
+# PEDIDOS
+# ===========================
 @app.route("/api/orders", methods=["GET"])
 @jwt_required()
 def get_orders_history():
@@ -201,11 +229,12 @@ def create_order():
     return jsonify({"message": "Pedido creado correctamente"}), 201
 
 
-# UPDATE PROFILE — FIX PARA CORS EN EXPO WEB
+# ===========================
+# UPDATE USER (CORS FIX)
+# ===========================
 @app.route("/api/user/update", methods=["PUT", "OPTIONS"])
 @jwt_required(optional=True)
 def update_user():
-    # Preflight de CORS
     if request.method == "OPTIONS":
         return "", 200
 
@@ -241,7 +270,9 @@ def update_user():
     }), 200
 
 
+# ===========================
 # INICIALIZACIÓN
+# ===========================
 with app.app_context():
     db.create_all()
 
@@ -258,6 +289,8 @@ with app.app_context():
         db.session.commit()
 
 
-# EJECUCIÓN LOCAL
+# ===========================
+# RUN LOCAL
+# ===========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
